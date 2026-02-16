@@ -1,0 +1,1078 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <meta name="theme-color" content="#0a0a0f" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="description" content="Personal game budget tracker" />
+  <title>GILGAMESH</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg:        #0a0a0f;
+      --bg2:       #111118;
+      --bg3:       #1a1a24;
+      --border:    #2a2a3a;
+      --border2:   #3a3a50;
+      --gold:      #c9a84c;
+      --gold2:     #e8c96a;
+      --gold-dim:  #7a6130;
+      --red:       #c94c4c;
+      --red2:      #e86a6a;
+      --green:     #4cc98a;
+      --blue:      #4c8ac9;
+      --text:      #e8e8f0;
+      --text2:     #9898b0;
+      --text3:     #5a5a70;
+      --ps:        #003087;
+      --ps2:       #0070cc;
+      --xbox:      #107c10;
+      --xbox2:     #52b043;
+      --switch:    #e4000f;
+      --switch2:   #ff3b3b;
+      --pc:        #1b2838;
+      --pc2:       #66c0f4;
+      --other:     #6a4c9c;
+      --other2:    #9b72cf;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Outfit', sans-serif;
+      font-size: 16px;
+      line-height: 1.5;
+      overflow-x: hidden;
+    }
+
+    /* ── NOISE OVERLAY ── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 0;
+      opacity: 0.4;
+    }
+
+    /* ── APP SHELL ── */
+    #app {
+      position: relative;
+      z-index: 1;
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      max-width: 480px;
+      margin: 0 auto;
+    }
+
+    /* ── HEADER ── */
+    header {
+      padding: 20px 20px 0;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .app-title {
+      font-family: 'Cinzel', serif;
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: 0.25em;
+      color: var(--gold);
+      text-shadow: 0 0 30px rgba(201,168,76,0.3);
+    }
+
+    .app-subtitle {
+      font-size: 11px;
+      letter-spacing: 0.2em;
+      color: var(--text3);
+      text-transform: uppercase;
+    }
+
+    /* ── NAV TABS ── */
+    nav {
+      display: flex;
+      gap: 2px;
+      padding: 16px 20px 0;
+    }
+
+    .tab {
+      flex: 1;
+      padding: 10px 4px;
+      background: transparent;
+      border: none;
+      border-bottom: 2px solid var(--border);
+      color: var(--text3);
+      font-family: 'Outfit', sans-serif;
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .tab.active {
+      color: var(--gold);
+      border-bottom-color: var(--gold);
+    }
+
+    .tab:hover:not(.active) {
+      color: var(--text2);
+      border-bottom-color: var(--border2);
+    }
+
+    /* ── MAIN CONTENT ── */
+    main {
+      flex: 1;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .view { display: none; flex-direction: column; gap: 16px; }
+    .view.active { display: flex; }
+
+    /* ── CARDS ── */
+    .card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+    }
+
+    .card-title {
+      font-family: 'Cinzel', serif;
+      font-size: 11px;
+      letter-spacing: 0.2em;
+      color: var(--text3);
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+
+    /* ── DASHBOARD STATS ── */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .stat-card {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .stat-card.accent {
+      border-color: var(--gold-dim);
+      background: linear-gradient(135deg, rgba(201,168,76,0.05), var(--bg3));
+    }
+
+    .stat-label {
+      font-size: 10px;
+      letter-spacing: 0.15em;
+      color: var(--text3);
+      text-transform: uppercase;
+    }
+
+    .stat-value {
+      font-family: 'Cinzel', serif;
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--gold);
+      line-height: 1;
+    }
+
+    .stat-value.danger { color: var(--red); }
+    .stat-value.normal { color: var(--text); font-size: 20px; }
+
+    .stat-sub {
+      font-size: 11px;
+      color: var(--text3);
+      margin-top: 2px;
+    }
+
+    /* ── MONTH FILTER ── */
+    .month-filter {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .month-filter-label {
+      font-size: 11px;
+      color: var(--text3);
+      letter-spacing: 0.1em;
+    }
+
+    .filter-chips {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .chip {
+      padding: 4px 12px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text2);
+      font-family: 'Outfit', sans-serif;
+      font-size: 11px;
+      cursor: pointer;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+
+    .chip.active {
+      background: var(--gold);
+      border-color: var(--gold);
+      color: var(--bg);
+      font-weight: 600;
+    }
+
+    /* ── MONTHLY BREAKDOWN CHART ── */
+    .bar-chart {
+      display: flex;
+      align-items: flex-end;
+      gap: 6px;
+      height: 80px;
+      padding-top: 8px;
+    }
+
+    .bar-wrap {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      height: 100%;
+      justify-content: flex-end;
+    }
+
+    .bar {
+      width: 100%;
+      border-radius: 3px 3px 0 0;
+      background: var(--gold-dim);
+      transition: height 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+      min-height: 2px;
+      cursor: pointer;
+      position: relative;
+    }
+
+    .bar.current { background: var(--gold); }
+    .bar:hover { background: var(--gold2); }
+
+    .bar-label {
+      font-size: 9px;
+      color: var(--text3);
+      letter-spacing: 0.05em;
+    }
+
+    /* ── PURCHASE LIST ── */
+    .purchase-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .purchase-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px;
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      transition: border-color 0.15s;
+    }
+
+    .purchase-item:hover {
+      border-color: var(--border2);
+    }
+
+    .platform-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .purchase-info { flex: 1; min-width: 0; }
+
+    .purchase-name {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .purchase-meta {
+      font-size: 11px;
+      color: var(--text3);
+      margin-top: 2px;
+    }
+
+    .purchase-price {
+      font-family: 'Cinzel', serif;
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--gold);
+      flex-shrink: 0;
+    }
+
+    .purchase-delete {
+      background: none;
+      border: none;
+      color: var(--text3);
+      cursor: pointer;
+      padding: 4px;
+      border-radius: 4px;
+      transition: color 0.15s;
+      font-size: 16px;
+      line-height: 1;
+    }
+
+    .purchase-delete:hover { color: var(--red2); }
+
+    /* ── EMPTY STATE ── */
+    .empty-state {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--text3);
+    }
+
+    .empty-icon {
+      font-size: 48px;
+      margin-bottom: 12px;
+      opacity: 0.5;
+    }
+
+    .empty-title {
+      font-family: 'Cinzel', serif;
+      font-size: 14px;
+      letter-spacing: 0.15em;
+      color: var(--text3);
+      margin-bottom: 6px;
+    }
+
+    .empty-sub { font-size: 12px; }
+
+    /* ── FAB ── */
+    .fab {
+      position: fixed;
+      bottom: 28px;
+      right: 20px;
+      width: 56px;
+      height: 56px;
+      border-radius: 16px;
+      background: var(--gold);
+      border: none;
+      color: var(--bg);
+      font-size: 28px;
+      font-weight: 300;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 24px rgba(201,168,76,0.4);
+      transition: transform 0.15s, box-shadow 0.15s;
+      z-index: 100;
+    }
+
+    .fab:hover {
+      transform: scale(1.05);
+      box-shadow: 0 6px 32px rgba(201,168,76,0.5);
+    }
+
+    .fab:active { transform: scale(0.96); }
+
+    /* ── MODAL ── */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      backdrop-filter: blur(4px);
+      z-index: 200;
+      display: none;
+      align-items: flex-end;
+      justify-content: center;
+    }
+
+    .modal-backdrop.open { display: flex; }
+
+    .modal {
+      background: var(--bg2);
+      border: 1px solid var(--border2);
+      border-radius: 20px 20px 0 0;
+      padding: 24px 20px 36px;
+      width: 100%;
+      max-width: 480px;
+      animation: slideUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    @keyframes slideUp {
+      from { transform: translateY(100%); opacity: 0; }
+      to   { transform: translateY(0);    opacity: 1; }
+    }
+
+    .modal-handle {
+      width: 40px;
+      height: 4px;
+      background: var(--border2);
+      border-radius: 2px;
+      margin: 0 auto 20px;
+    }
+
+    .modal-title {
+      font-family: 'Cinzel', serif;
+      font-size: 16px;
+      letter-spacing: 0.15em;
+      color: var(--gold);
+      margin-bottom: 20px;
+    }
+
+    /* ── FORM ── */
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 14px;
+    }
+
+    label {
+      font-size: 11px;
+      letter-spacing: 0.15em;
+      color: var(--text3);
+      text-transform: uppercase;
+    }
+
+    input, select {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 14px;
+      color: var(--text);
+      font-family: 'Outfit', sans-serif;
+      font-size: 15px;
+      outline: none;
+      transition: border-color 0.15s;
+      width: 100%;
+      appearance: none;
+      -webkit-appearance: none;
+    }
+
+    input:focus, select:focus {
+      border-color: var(--gold-dim);
+    }
+
+    input::placeholder { color: var(--text3); }
+
+    .platform-select-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+
+    .platform-btn {
+      padding: 10px 6px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--bg3);
+      color: var(--text2);
+      font-family: 'Outfit', sans-serif;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s;
+      text-align: center;
+    }
+
+    .platform-btn.selected {
+      font-weight: 600;
+    }
+
+    .platform-btn[data-platform="PlayStation"].selected { background: rgba(0,112,204,0.2); border-color: var(--ps2); color: var(--ps2); }
+    .platform-btn[data-platform="Xbox"].selected        { background: rgba(82,176,67,0.2);  border-color: var(--xbox2); color: var(--xbox2); }
+    .platform-btn[data-platform="Switch"].selected      { background: rgba(228,0,15,0.2);   border-color: var(--switch2); color: var(--switch2); }
+    .platform-btn[data-platform="PC"].selected          { background: rgba(102,192,244,0.2);border-color: var(--pc2); color: var(--pc2); }
+    .platform-btn[data-platform="Other"].selected       { background: rgba(155,114,207,0.2);border-color: var(--other2); color: var(--other2); }
+
+    .price-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .price-prefix {
+      font-family: 'Cinzel', serif;
+      font-size: 18px;
+      color: var(--gold);
+      padding-top: 2px;
+    }
+
+    .btn-primary {
+      width: 100%;
+      padding: 14px;
+      background: var(--gold);
+      border: none;
+      border-radius: 12px;
+      color: var(--bg);
+      font-family: 'Cinzel', serif;
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      cursor: pointer;
+      transition: all 0.15s;
+      margin-top: 6px;
+    }
+
+    .btn-primary:hover { background: var(--gold2); }
+    .btn-primary:active { transform: scale(0.98); }
+
+    /* ── PLATFORM COLOURS IN LIST ── */
+    .dot-PlayStation { background: var(--ps2); }
+    .dot-Xbox        { background: var(--xbox2); }
+    .dot-Switch      { background: var(--switch2); }
+    .dot-PC          { background: var(--pc2); }
+    .dot-Other       { background: var(--other2); }
+
+    /* ── SECTION HEADERS ── */
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+
+    .section-title {
+      font-family: 'Cinzel', serif;
+      font-size: 11px;
+      letter-spacing: 0.2em;
+      color: var(--text3);
+      text-transform: uppercase;
+    }
+
+    .section-count {
+      font-size: 11px;
+      color: var(--text3);
+    }
+
+    /* ── PLATFORM BREAKDOWN ── */
+    .platform-breakdown {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .platform-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .platform-row-label {
+      font-size: 12px;
+      color: var(--text2);
+      width: 90px;
+      flex-shrink: 0;
+    }
+
+    .platform-bar-track {
+      flex: 1;
+      height: 6px;
+      background: var(--bg3);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .platform-bar-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    .platform-row-value {
+      font-family: 'Cinzel', serif;
+      font-size: 12px;
+      color: var(--text2);
+      width: 60px;
+      text-align: right;
+      flex-shrink: 0;
+    }
+
+    /* ── SCROLL ── */
+    .scrollable {
+      overflow-y: auto;
+      max-height: 400px;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .scrollable::-webkit-scrollbar { width: 3px; }
+    .scrollable::-webkit-scrollbar-track { background: transparent; }
+    .scrollable::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+    /* ── TOAST ── */
+    .toast {
+      position: fixed;
+      bottom: 100px;
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: var(--bg3);
+      border: 1px solid var(--border2);
+      border-radius: 10px;
+      padding: 10px 18px;
+      font-size: 13px;
+      color: var(--text);
+      z-index: 300;
+      opacity: 0;
+      transition: all 0.25s;
+      white-space: nowrap;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    /* ── DIVIDER ── */
+    .divider {
+      height: 1px;
+      background: var(--border);
+      margin: 4px 0;
+    }
+
+    /* ── BOTTOM PADDING (for FAB) ── */
+    .bottom-spacer { height: 80px; }
+  </style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="app-title">GILGAMESH</div>
+    <div class="app-subtitle">Game Budget Tracker</div>
+  </header>
+
+  <nav>
+    <button class="tab active" data-view="dashboard">Dashboard</button>
+    <button class="tab" data-view="purchases">Purchases</button>
+    <button class="tab" data-view="backlog">Backlog</button>
+  </nav>
+
+  <main>
+    <!-- ── DASHBOARD ── -->
+    <div class="view active" id="view-dashboard">
+
+      <div class="filter-chips" id="period-filter">
+        <button class="chip active" data-months="1">This month</button>
+        <button class="chip" data-months="3">3 months</button>
+        <button class="chip" data-months="6">6 months</button>
+        <button class="chip" data-months="12">12 months</button>
+        <button class="chip" data-months="0">All time</button>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat-card accent">
+          <div class="stat-label">Total Spent</div>
+          <div class="stat-value" id="stat-total">€0</div>
+          <div class="stat-sub" id="stat-period-label">this month</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Games Bought</div>
+          <div class="stat-value normal" id="stat-count">0</div>
+          <div class="stat-sub" id="stat-avg">avg €0 each</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Monthly Spend</div>
+        <div class="bar-chart" id="bar-chart"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">By Platform</div>
+        <div class="platform-breakdown" id="platform-breakdown"></div>
+      </div>
+
+    </div>
+
+    <!-- ── PURCHASES ── -->
+    <div class="view" id="view-purchases">
+      <div class="section-header">
+        <div class="section-title">All Purchases</div>
+        <div class="section-count" id="purchase-count">0 games</div>
+      </div>
+      <div class="purchase-list scrollable" id="purchase-list">
+        <div class="empty-state">
+          <div class="empty-icon">🎮</div>
+          <div class="empty-title">No purchases yet</div>
+          <div class="empty-sub">Hit + to add your first game</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── BACKLOG ── -->
+    <div class="view" id="view-backlog">
+      <div class="empty-state">
+        <div class="empty-icon">⚔️</div>
+        <div class="empty-title">Backlog Coming Soon</div>
+        <div class="empty-sub">Phase 2 — statuses, OpenCritic scores, and more</div>
+      </div>
+    </div>
+
+    <div class="bottom-spacer"></div>
+  </main>
+</div>
+
+<!-- ── FAB ── -->
+<button class="fab" id="fab" aria-label="Add purchase">+</button>
+
+<!-- ── ADD MODAL ── -->
+<div class="modal-backdrop" id="modal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Add Purchase</div>
+
+    <div class="form-group">
+      <label>Game Title</label>
+      <input type="text" id="input-name" placeholder="e.g. Final Fantasy VIII Remastered" autocomplete="off" />
+    </div>
+
+    <div class="form-group">
+      <label>Platform</label>
+      <div class="platform-select-grid">
+        <button class="platform-btn" data-platform="PlayStation">PlayStation</button>
+        <button class="platform-btn" data-platform="Xbox">Xbox</button>
+        <button class="platform-btn" data-platform="Switch">Switch</button>
+        <button class="platform-btn" data-platform="PC">PC</button>
+        <button class="platform-btn" data-platform="Other">Other</button>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>What you actually paid (€)</label>
+      <div class="price-row">
+        <span class="price-prefix">€</span>
+        <input type="number" id="input-price" placeholder="0.00" step="0.01" min="0" />
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Purchase Date</label>
+      <input type="date" id="input-date" />
+    </div>
+
+    <div class="form-group">
+      <label>Notes (optional)</label>
+      <input type="text" id="input-notes" placeholder="e.g. US store sale, HK prepaid card…" autocomplete="off" />
+    </div>
+
+    <button class="btn-primary" id="btn-save">ADD TO LEDGER</button>
+  </div>
+</div>
+
+<!-- ── TOAST ── -->
+<div class="toast" id="toast"></div>
+
+<script>
+  // ── DB ──────────────────────────────────────────────────────────────────
+  const DB_NAME = 'gilgamesh';
+  const DB_VER  = 1;
+  let db;
+
+  function openDB() {
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open(DB_NAME, DB_VER);
+      req.onupgradeneeded = e => {
+        const d = e.target.result;
+        if (!d.objectStoreNames.contains('purchases')) {
+          const store = d.createObjectStore('purchases', { keyPath: 'id', autoIncrement: true });
+          store.createIndex('date', 'date');
+          store.createIndex('platform', 'platform');
+        }
+      };
+      req.onsuccess = e => { db = e.target.result; resolve(db); };
+      req.onerror   = e => reject(e.target.error);
+    });
+  }
+
+  function dbAll(storeName) {
+    return new Promise((resolve, reject) => {
+      const tx  = db.transaction(storeName, 'readonly');
+      const req = tx.objectStore(storeName).getAll();
+      req.onsuccess = e => resolve(e.target.result);
+      req.onerror   = e => reject(e.target.error);
+    });
+  }
+
+  function dbAdd(storeName, obj) {
+    return new Promise((resolve, reject) => {
+      const tx  = db.transaction(storeName, 'readwrite');
+      const req = tx.objectStore(storeName).add(obj);
+      req.onsuccess = e => resolve(e.target.result);
+      req.onerror   = e => reject(e.target.error);
+    });
+  }
+
+  function dbDelete(storeName, id) {
+    return new Promise((resolve, reject) => {
+      const tx  = db.transaction(storeName, 'readwrite');
+      const req = tx.objectStore(storeName).delete(id);
+      req.onsuccess = () => resolve();
+      req.onerror   = e => reject(e.target.error);
+    });
+  }
+
+  // ── STATE ───────────────────────────────────────────────────────────────
+  let purchases    = [];
+  let activePeriod = 1;   // months; 0 = all time
+  let selectedPlatform = null;
+
+  // ── HELPERS ─────────────────────────────────────────────────────────────
+  const fmt = n => '€' + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+
+  function filterByPeriod(list, months) {
+    if (months === 0) return list;
+    const cutoff = new Date();
+    cutoff.setMonth(cutoff.getMonth() - months);
+    return list.filter(p => new Date(p.date) >= cutoff);
+  }
+
+  function monthKey(dateStr) {
+    const d = new Date(dateStr);
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+  }
+
+  function monthLabel(key) {
+    const [y, m] = key.split('-');
+    return new Date(+y, +m-1, 1).toLocaleDateString('en-IE', { month: 'short', year: '2-digit' });
+  }
+
+  const PLATFORM_COLORS = {
+    PlayStation: 'var(--ps2)',
+    Xbox:        'var(--xbox2)',
+    Switch:      'var(--switch2)',
+    PC:          'var(--pc2)',
+    Other:       'var(--other2)',
+  };
+
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2200);
+  }
+
+  // ── RENDER DASHBOARD ────────────────────────────────────────────────────
+  function renderDashboard() {
+    const filtered = filterByPeriod(purchases, activePeriod);
+    const total    = filtered.reduce((s, p) => s + p.price, 0);
+    const count    = filtered.length;
+    const avg      = count ? total / count : 0;
+
+    document.getElementById('stat-total').textContent = fmt(total);
+    document.getElementById('stat-count').textContent = count;
+    document.getElementById('stat-avg').textContent   = `avg ${fmt(avg)} each`;
+
+    const labels = {
+      1: 'this month', 3: 'last 3 months',
+      6: 'last 6 months', 12: 'last 12 months', 0: 'all time'
+    };
+    document.getElementById('stat-period-label').textContent = labels[activePeriod];
+
+    // ── BAR CHART (last 6 months always) ──
+    const now     = new Date();
+    const months  = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      months.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`);
+    }
+    const byMonth = {};
+    purchases.forEach(p => {
+      const k = monthKey(p.date);
+      byMonth[k] = (byMonth[k] || 0) + p.price;
+    });
+    const vals = months.map(m => byMonth[m] || 0);
+    const maxV = Math.max(...vals, 1);
+    const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+
+    const chart = document.getElementById('bar-chart');
+    chart.innerHTML = months.map((m, i) => `
+      <div class="bar-wrap">
+        <div class="bar ${m === currentMonthKey ? 'current' : ''}"
+             style="height:${Math.max(4, (vals[i]/maxV)*64)}px"
+             title="${monthLabel(m)}: ${fmt(vals[i])}"></div>
+        <div class="bar-label">${monthLabel(m)}</div>
+      </div>
+    `).join('');
+
+    // ── PLATFORM BREAKDOWN ──
+    const byPlatform = {};
+    filtered.forEach(p => {
+      byPlatform[p.platform] = (byPlatform[p.platform] || 0) + p.price;
+    });
+    const sortedP = Object.entries(byPlatform).sort((a,b) => b[1]-a[1]);
+    const maxP    = sortedP.length ? sortedP[0][1] : 1;
+
+    const pb = document.getElementById('platform-breakdown');
+    if (!sortedP.length) {
+      pb.innerHTML = `<div style="font-size:12px;color:var(--text3);text-align:center;padding:12px 0">No data for this period</div>`;
+    } else {
+      pb.innerHTML = sortedP.map(([plat, val]) => `
+        <div class="platform-row">
+          <div class="platform-row-label">${plat}</div>
+          <div class="platform-bar-track">
+            <div class="platform-bar-fill"
+                 style="width:${(val/maxP)*100}%;background:${PLATFORM_COLORS[plat]||'var(--other2)'}"></div>
+          </div>
+          <div class="platform-row-value">${fmt(val)}</div>
+        </div>
+      `).join('');
+    }
+  }
+
+  // ── RENDER PURCHASES ────────────────────────────────────────────────────
+  function renderPurchases() {
+    const list  = [...purchases].sort((a,b) => new Date(b.date) - new Date(a.date));
+    const el    = document.getElementById('purchase-list');
+    document.getElementById('purchase-count').textContent = `${list.length} game${list.length !== 1 ? 's' : ''}`;
+
+    if (!list.length) {
+      el.innerHTML = `
+        <div class="empty-state">
+          <div class="empty-icon">🎮</div>
+          <div class="empty-title">No purchases yet</div>
+          <div class="empty-sub">Hit + to add your first game</div>
+        </div>`;
+      return;
+    }
+
+    el.innerHTML = list.map(p => `
+      <div class="purchase-item">
+        <div class="platform-dot dot-${p.platform}"></div>
+        <div class="purchase-info">
+          <div class="purchase-name">${p.name}</div>
+          <div class="purchase-meta">${p.platform} · ${new Date(p.date).toLocaleDateString('en-IE', {day:'numeric',month:'short',year:'numeric'})}${p.notes ? ' · ' + p.notes : ''}</div>
+        </div>
+        <div class="purchase-price">${fmt(p.price)}</div>
+        <button class="purchase-delete" data-id="${p.id}" aria-label="Delete">×</button>
+      </div>
+    `).join('');
+
+    el.querySelectorAll('.purchase-delete').forEach(btn => {
+      btn.addEventListener('click', async e => {
+        const id = Number(e.currentTarget.dataset.id);
+        if (confirm('Remove this purchase?')) {
+          await dbDelete('purchases', id);
+          purchases = purchases.filter(p => p.id !== id);
+          renderAll();
+          showToast('Purchase removed');
+        }
+      });
+    });
+  }
+
+  function renderAll() {
+    renderDashboard();
+    renderPurchases();
+  }
+
+  // ── TABS ────────────────────────────────────────────────────────────────
+  document.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+      tab.classList.add('active');
+      document.getElementById(`view-${tab.dataset.view}`).classList.add('active');
+    });
+  });
+
+  // ── PERIOD FILTER ───────────────────────────────────────────────────────
+  document.getElementById('period-filter').addEventListener('click', e => {
+    const chip = e.target.closest('.chip');
+    if (!chip) return;
+    document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+    chip.classList.add('active');
+    activePeriod = Number(chip.dataset.months);
+    renderDashboard();
+  });
+
+  // ── MODAL ───────────────────────────────────────────────────────────────
+  const modal   = document.getElementById('modal');
+  const fab     = document.getElementById('fab');
+
+  fab.addEventListener('click', () => {
+    // set today's date
+    document.getElementById('input-date').value = new Date().toISOString().split('T')[0];
+    selectedPlatform = null;
+    document.querySelectorAll('.platform-btn').forEach(b => b.classList.remove('selected'));
+    document.getElementById('input-name').value  = '';
+    document.getElementById('input-price').value = '';
+    document.getElementById('input-notes').value = '';
+    modal.classList.add('open');
+    setTimeout(() => document.getElementById('input-name').focus(), 300);
+  });
+
+  modal.addEventListener('click', e => {
+    if (e.target === modal) modal.classList.remove('open');
+  });
+
+  document.querySelectorAll('.platform-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.platform-btn').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      selectedPlatform = btn.dataset.platform;
+    });
+  });
+
+  document.getElementById('btn-save').addEventListener('click', async () => {
+    const name  = document.getElementById('input-name').value.trim();
+    const price = parseFloat(document.getElementById('input-price').value);
+    const date  = document.getElementById('input-date').value;
+    const notes = document.getElementById('input-notes').value.trim();
+
+    if (!name)              return showToast('Enter a game title');
+    if (!selectedPlatform)  return showToast('Select a platform');
+    if (isNaN(price) || price < 0) return showToast('Enter a valid price');
+    if (!date)              return showToast('Pick a date');
+
+    const purchase = { name, platform: selectedPlatform, price, date, notes };
+    const id = await dbAdd('purchases', purchase);
+    purchase.id = id;
+    purchases.push(purchase);
+    modal.classList.remove('open');
+    renderAll();
+    showToast(`${name} added ✓`);
+  });
+
+  // ── SERVICE WORKER ──────────────────────────────────────────────────────
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  }
+
+  // ── INIT ────────────────────────────────────────────────────────────────
+  openDB().then(async () => {
+    purchases = await dbAll('purchases');
+    renderAll();
+  });
+</script>
+</body>
+</html>
