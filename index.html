@@ -12,6 +12,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="https://apis.google.com/js/api.js" async defer></script>
   <style>
     :root {
       --bg:        #0a0a0f;
@@ -662,6 +664,59 @@
 
     /* ── BOTTOM PADDING (for FAB) ── */
     .bottom-spacer { height: 80px; }
+
+    /* ── SYNC BUTTON ── */
+    .sync-btn {
+      width: 100%;
+      padding: 14px;
+      background: var(--bg3);
+      border: 1px solid var(--border2);
+      border-radius: 12px;
+      color: var(--text);
+      font-family: 'Outfit', sans-serif;
+      font-size: 13px;
+      font-weight: 500;
+      letter-spacing: 0.05em;
+      cursor: pointer;
+      transition: all 0.15s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .sync-btn:hover {
+      background: var(--bg2);
+      border-color: var(--gold-dim);
+    }
+
+    .sync-btn:active { transform: scale(0.98); }
+
+    .sync-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .sync-status {
+      font-size: 11px;
+      color: var(--text3);
+      text-align: center;
+      margin-top: 8px;
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border: 2px solid var(--border2);
+      border-top-color: var(--gold);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
   </style>
 </head>
 <body>
@@ -680,6 +735,14 @@
   <main>
     <!-- ── DASHBOARD ── -->
     <div class="view active" id="view-dashboard">
+
+      <div class="card">
+        <button class="sync-btn" id="sync-receipts-btn">
+          <span id="sync-icon">📧</span>
+          <span id="sync-text">Sync Gmail Receipts</span>
+        </button>
+        <div class="sync-status" id="sync-status"></div>
+      </div>
 
       <div class="filter-chips" id="period-filter">
         <button class="chip active" data-months="1">This month</button>
@@ -1061,6 +1124,421 @@
     modal.classList.remove('open');
     renderAll();
     showToast(`${name} added ✓`);
+  });
+
+  // ── GMAIL OAUTH & EMAIL PARSING ─────────────────────────────────────────
+  // IMPORTANT: Replace this with your actual Google Cloud OAuth Client ID
+  const GOOGLE_CLIENT_ID = 'YOUR_CLIENT_ID_HERE.apps.googleusercontent.com';
+  const GMAIL_SCOPES = 'https://www.googleapis.com/auth/gmail.readonly';
+
+  let tokenClient;
+  let gapiInited = false;
+  let gisInited = false;
+
+  // Initialize Google API
+  function gapiLoaded() {
+    gapi.load('client', initializeGapiClient);
+  }
+
+  async function initializeGapiClient() {
+    await gapi.client.init({
+      apiKey: '', // Not needed for OAuth-only access
+      discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/gmail/v1/rest'],
+    });
+    gapiInited = true;
+  }
+
+  // Initialize Google Identity Services
+  function gisLoaded() {
+    tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: GOOGLE_CLIENT_ID,
+      scope: GMAIL_SCOPES,
+      callback: '', // defined later
+    });
+    gisInited = true;
+  }
+
+  // Auto-initialize when scripts load
+  window.gapiLoaded = gapiLoaded;
+  window.gisLoaded = gisLoaded;
+  if (typeof gapi !== 'undefined') gapiLoaded();
+  if (typeof google !== 'undefined') gisLoaded();
+
+  // Multi-currency price extractor (detects currency but only returns EUR)
+  function extractPrice(body) {
+    // Try EUR first (multiple formats)
+    const eurPatterns = [
+      /€\s*(\d+[.,]\d{2})/,                           // €50.00 or €50,00
+      /(\d+[.,]\d{2})\s*€/,                           // 50.00€ or 50,00€
+      /(\d+[.,]\d{2})\s*EUR/i,                        // 50.00 EUR
+      /EUR\s*(\d+[.,]\d{2})/i,                        // EUR 50.00
+      /Total[:\s]+€?\s*(\d+[.,]\d{2})/i,              // Total: €50.00
+      /Price[:\s]+€?\s*(\d+[.,]\d{2})/i,              // Price: €50.00
+      /Amount[:\s]+€?\s*(\d+[.,]\d{2})/i              // Amount: €50.00
+    ];
+
+    for (const pattern of eurPatterns) {
+      const match = body.match(pattern);
+      if (match) {
+        const price = parseFloat(match[1].replace(',', '.'));
+        return { price, currency: 'EUR' };
+      }
+    }
+
+    // Detect other currencies (but don't import them)
+    const otherCurrencies = [
+      { pattern: /\$\s*(\d+[.,]\d{2})|(\d+[.,]\d{2})\s*USD/i, code: 'USD' },
+      { pattern: /£\s*(\d+[.,]\d{2})|(\d+[.,]\d{2})\s*GBP/i, code: 'GBP' },
+      { pattern: /¥\s*(\d+)|(\d+)\s*JPY/i, code: 'JPY' },
+      { pattern: /(\d+[.,]\d{2})\s*AUD/i, code: 'AUD' },
+      { pattern: /(\d+[.,]\d{2})\s*CAD/i, code: 'CAD' }
+    ];
+
+    for (const curr of otherCurrencies) {
+      const match = body.match(curr.pattern);
+      if (match) {
+        const price = parseFloat((match[1] || match[2]).replace(',', '.'));
+        return { price, currency: curr.code };
+      }
+    }
+
+    return { price: 0, currency: null };
+  }
+
+  // Email parsing functions for each platform
+  const EmailParsers = {
+    // PlayStation Store
+    playstation: {
+      from: ['@email.playstation.com', '@playstationmail.com'],
+      subject: ['Your purchase', 'Thank you for your purchase'],
+      parse: (email) => {
+        const body = email.body;
+        const subject = email.subject;
+
+        // Extract game title from subject line
+        let name = subject.replace(/Your purchase|Thank you for your purchase|Receipt/gi, '').trim();
+        name = name.replace(/[:\-–]/g, '').trim();
+
+        // Extract price
+        const { price, currency } = extractPrice(body);
+
+        // If name is empty or too short, try to extract from body
+        if (!name || name.length < 3) {
+          const titleMatch = body.match(/Product:\s*(.+?)(?:\n|<br|$)/i) ||
+                           body.match(/Item:\s*(.+?)(?:\n|<br|$)/i) ||
+                           body.match(/Game:\s*(.+?)(?:\n|<br|$)/i);
+          if (titleMatch) name = titleMatch[1].trim();
+        }
+
+        return { name, price, currency, platform: 'PlayStation' };
+      }
+    },
+
+    // Nintendo eShop
+    nintendo: {
+      from: ['@nintendo.com', '@nintendo.net', 'noreply@ccg.nintendo.com'],
+      subject: ['Nintendo eShop Purchase', 'Your Nintendo eShop receipt'],
+      parse: (email) => {
+        const body = email.body;
+        const subject = email.subject;
+
+        // Extract game title
+        let name = subject.replace(/Nintendo eShop Purchase|Your Nintendo eShop receipt|Receipt/gi, '').trim();
+        name = name.replace(/[:\-–]/g, '').trim();
+
+        // Extract price
+        const { price, currency } = extractPrice(body);
+
+        // Extract from body if needed
+        if (!name || name.length < 3) {
+          const titleMatch = body.match(/Software:\s*(.+?)(?:\n|<br|$)/i) ||
+                           body.match(/Item:\s*(.+?)(?:\n|<br|$)/i) ||
+                           body.match(/Title:\s*(.+?)(?:\n|<br|$)/i);
+          if (titleMatch) name = titleMatch[1].trim();
+        }
+
+        return { name, price, currency, platform: 'Switch' };
+      }
+    },
+
+    // Xbox/Microsoft Store
+    xbox: {
+      from: ['@email.microsoft.com', '@xbox.com'],
+      subject: ['Your receipt from Microsoft', 'Xbox purchase'],
+      parse: (email) => {
+        const body = email.body;
+        const subject = email.subject;
+
+        // Extract game title
+        let name = subject.replace(/Your receipt from Microsoft|Xbox purchase|Receipt/gi, '').trim();
+        name = name.replace(/[:\-–]/g, '').trim();
+
+        // Extract price
+        const { price, currency } = extractPrice(body);
+
+        // Extract from body if needed
+        if (!name || name.length < 3) {
+          const titleMatch = body.match(/Order:\s*(.+?)(?:\n|<br|$)/i) ||
+                           body.match(/Product:\s*(.+?)(?:\n|<br|$)/i) ||
+                           body.match(/Item:\s*(.+?)(?:\n|<br|$)/i);
+          if (titleMatch) name = titleMatch[1].trim();
+        }
+
+        return { name, price, currency, platform: 'Xbox' };
+      }
+    },
+
+    // Steam
+    steam: {
+      from: ['@steampowered.com', 'noreply@steampowered.com'],
+      subject: ['Thank you for your Steam purchase', 'Your Steam purchase'],
+      parse: (email) => {
+        const body = email.body;
+        const subject = email.subject;
+
+        // Extract game title from subject
+        let name = subject.replace(/Thank you for your Steam purchase|Your Steam purchase|Receipt/gi, '').trim();
+        name = name.replace(/[:\-–]/g, '').trim();
+
+        // Extract price
+        const { price, currency } = extractPrice(body);
+
+        // Extract from body if needed
+        if (!name || name.length < 3) {
+          const titleMatch = body.match(/Items?:\s*(.+?)(?:\n|<br|$)/i) ||
+                           body.match(/Product:\s*(.+?)(?:\n|<br|$)/i);
+          if (titleMatch) name = titleMatch[1].trim();
+        }
+
+        return { name, price, currency, platform: 'PC' };
+      }
+    }
+  };
+
+  // Check if purchase already exists (duplicate detection)
+  function isDuplicate(newPurchase) {
+    return purchases.some(p =>
+      p.name.toLowerCase() === newPurchase.name.toLowerCase() &&
+      p.platform === newPurchase.platform &&
+      Math.abs(p.price - newPurchase.price) < 0.01 &&
+      Math.abs(new Date(p.date) - new Date(newPurchase.date)) < 86400000 // within 1 day
+    );
+  }
+
+  // Decode email body
+  function decodeEmailBody(payload) {
+    let body = '';
+
+    if (payload.parts) {
+      payload.parts.forEach(part => {
+        if (part.mimeType === 'text/plain' || part.mimeType === 'text/html') {
+          if (part.body.data) {
+            body += atob(part.body.data.replace(/-/g, '+').replace(/_/g, '/'));
+          }
+        }
+        if (part.parts) {
+          body += decodeEmailBody(part);
+        }
+      });
+    } else if (payload.body && payload.body.data) {
+      body = atob(payload.body.data.replace(/-/g, '+').replace(/_/g, '/'));
+    }
+
+    return body;
+  }
+
+  // Parse email and extract purchase data
+  function parseEmail(message) {
+    const headers = message.payload.headers;
+    const subject = headers.find(h => h.name === 'Subject')?.value || '';
+    const from = headers.find(h => h.name === 'From')?.value || '';
+    const dateHeader = headers.find(h => h.name === 'Date')?.value || '';
+    const body = decodeEmailBody(message.payload);
+
+    const email = { subject, from, body, date: new Date(dateHeader) };
+
+    // Try each parser
+    for (const [key, parser] of Object.entries(EmailParsers)) {
+      const matchesFrom = parser.from.some(f => from.toLowerCase().includes(f.toLowerCase()));
+      const matchesSubject = parser.subject.some(s => subject.toLowerCase().includes(s.toLowerCase()));
+
+      if (matchesFrom || matchesSubject) {
+        try {
+          const parsed = parser.parse(email);
+          if (parsed.name && parsed.price > 0) {
+            // Only return EUR purchases for import
+            if (parsed.currency === 'EUR') {
+              return {
+                name: parsed.name,
+                price: parsed.price,
+                platform: parsed.platform,
+                date: email.date.toISOString().split('T')[0],
+                notes: `Auto-imported from ${from.split('<')[0].trim()}`
+              };
+            } else {
+              // Return with skipReason for non-EUR purchases
+              return {
+                name: parsed.name,
+                price: parsed.price,
+                platform: parsed.platform,
+                currency: parsed.currency,
+                skipReason: `Non-EUR currency (${parsed.currency})`
+              };
+            }
+          }
+        } catch (e) {
+          console.error(`Error parsing ${key} email:`, e);
+        }
+      }
+    }
+
+    return null;
+  }
+
+  // Search Gmail and import receipts
+  async function syncGmailReceipts() {
+    if (!gapiInited || !gisInited) {
+      showToast('Google API not ready, please wait...');
+      return;
+    }
+
+    const syncBtn = document.getElementById('sync-receipts-btn');
+    const syncIcon = document.getElementById('sync-icon');
+    const syncText = document.getElementById('sync-text');
+    const syncStatus = document.getElementById('sync-status');
+
+    syncBtn.disabled = true;
+    syncIcon.innerHTML = '<span class="spinner"></span>';
+    syncText.textContent = 'Authenticating...';
+    syncStatus.textContent = '';
+
+    // Set up OAuth callback
+    tokenClient.callback = async (resp) => {
+      if (resp.error !== undefined) {
+        syncBtn.disabled = false;
+        syncIcon.textContent = '📧';
+        syncText.textContent = 'Sync Gmail Receipts';
+        showToast('Authentication failed');
+        return;
+      }
+
+      try {
+        syncText.textContent = 'Scanning emails...';
+        syncStatus.textContent = 'This may take a moment...';
+
+        // Build search query for all platforms
+        const queries = [
+          'from:(@email.playstation.com OR @playstationmail.com) subject:(purchase OR receipt)',
+          'from:(@nintendo.com OR @nintendo.net) subject:(eShop OR purchase OR receipt)',
+          'from:(@email.microsoft.com OR @xbox.com) subject:(purchase OR receipt OR Xbox)',
+          'from:@steampowered.com subject:(purchase OR receipt)'
+        ];
+
+        let totalImported = 0;
+        let totalScanned = 0;
+        let totalSkippedNonEur = 0;
+        let totalSkippedDuplicate = 0;
+
+        for (const query of queries) {
+          try {
+            const response = await gapi.client.gmail.users.messages.list({
+              userId: 'me',
+              q: query,
+              maxResults: 50 // Limit to prevent overwhelming the user
+            });
+
+            const messages = response.result.messages || [];
+            totalScanned += messages.length;
+
+            for (const message of messages) {
+              try {
+                const fullMessage = await gapi.client.gmail.users.messages.get({
+                  userId: 'me',
+                  id: message.id,
+                  format: 'full'
+                });
+
+                const purchase = parseEmail(fullMessage.result);
+
+                if (purchase) {
+                  // Check if this is a non-EUR purchase (has skipReason)
+                  if (purchase.skipReason) {
+                    totalSkippedNonEur++;
+                    console.log(`Skipped: ${purchase.name} (${purchase.skipReason})`);
+                  } else if (isDuplicate(purchase)) {
+                    totalSkippedDuplicate++;
+                  } else {
+                    const id = await dbAdd('purchases', purchase);
+                    purchase.id = id;
+                    purchases.push(purchase);
+                    totalImported++;
+                  }
+                }
+              } catch (e) {
+                console.error('Error processing message:', e);
+              }
+            }
+          } catch (e) {
+            console.error('Error with query:', query, e);
+          }
+        }
+
+        // Update UI
+        renderAll();
+        syncBtn.disabled = false;
+        syncIcon.textContent = '✓';
+        syncText.textContent = 'Sync Complete';
+
+        // Build status message
+        let statusParts = [`Scanned ${totalScanned} emails`];
+        if (totalImported > 0) statusParts.push(`imported ${totalImported}`);
+        if (totalSkippedNonEur > 0) statusParts.push(`skipped ${totalSkippedNonEur} non-EUR`);
+        if (totalSkippedDuplicate > 0) statusParts.push(`${totalSkippedDuplicate} duplicates`);
+        syncStatus.textContent = statusParts.join(', ');
+
+        setTimeout(() => {
+          syncIcon.textContent = '📧';
+          syncText.textContent = 'Sync Gmail Receipts';
+        }, 3000);
+
+        if (totalImported > 0) {
+          showToast(`Imported ${totalImported} purchase${totalImported !== 1 ? 's' : ''} from Gmail`);
+        } else if (totalSkippedNonEur > 0) {
+          showToast(`Found ${totalSkippedNonEur} non-EUR purchase${totalSkippedNonEur !== 1 ? 's' : ''} (use manual entry)`);
+        } else {
+          showToast('No new purchases found');
+        }
+
+      } catch (err) {
+        console.error('Sync error:', err);
+        syncBtn.disabled = false;
+        syncIcon.textContent = '⚠️';
+        syncText.textContent = 'Sync Failed';
+        syncStatus.textContent = err.message;
+        showToast('Failed to sync receipts');
+
+        setTimeout(() => {
+          syncIcon.textContent = '📧';
+          syncText.textContent = 'Sync Gmail Receipts';
+          syncStatus.textContent = '';
+        }, 5000);
+      }
+    };
+
+    // Request OAuth token
+    if (gapi.client.getToken() === null) {
+      tokenClient.requestAccessToken({ prompt: 'consent' });
+    } else {
+      tokenClient.requestAccessToken({ prompt: '' });
+    }
+  }
+
+  // Attach event listener to sync button
+  document.addEventListener('DOMContentLoaded', () => {
+    const syncBtn = document.getElementById('sync-receipts-btn');
+    if (syncBtn) {
+      syncBtn.addEventListener('click', syncGmailReceipts);
+    }
   });
 
   // ── SERVICE WORKER ──────────────────────────────────────────────────────
